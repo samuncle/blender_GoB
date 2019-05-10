@@ -66,9 +66,10 @@ class GoB_OT_import(bpy.types.Operator):
     def GoZit(self, pathFile):
         scn = bpy.context.scene
         pref = bpy.context.preferences.addons[__package__.split(".")[0]].preferences
-        diff = False
-        disp = False
-        nmp = False
+        diff_map = False
+        normal_map = False
+        disp_map = False
+
         utag = 0
         vertsData = []
         facesData = []
@@ -162,6 +163,7 @@ class GoB_OT_import(bpy.types.Operator):
                 bpy.data.meshes.remove(oldMesh)
                 obj.data.transform(obj.matrix_world.inverted()) #assume we have to rever transformation from obj mode
                 obj.select_set(True)
+                                
                 if len(obj.material_slots) > 0:
                     if obj.material_slots[0].material is not None:
                         objMat = obj.material_slots[0].material
@@ -171,13 +173,13 @@ class GoB_OT_import(bpy.types.Operator):
                 else:
                     objMat = bpy.data.materials.new('GoB_{0}'.format(objName))
                     obj.data.materials.append(objMat)
-                create_node_material(objMat)
+                #create_node_material(objMat)
             else:
                 obj = bpy.data.objects.new(objName, me)
                 objMat = bpy.data.materials.new('GoB_{0}'.format(objName))
                 obj.data.materials.append(objMat)
                 scn.collection.objects.link(obj)
-                create_node_material(objMat)
+                #create_node_material(objMat)
             utag = 0
 
             while tag:
@@ -249,35 +251,43 @@ class GoB_OT_import(bpy.types.Operator):
                 elif tag == b'\x00\x00\x00\x00':
                     break  # End
 
+
+
                 elif tag == b'\xc9\xaf\x00\x00':  # Diff map
+                    print("diff tag")
                     cnt = unpack('<I', goz_file.read(4))[0] - 16
                     goz_file.seek(8, 1)
                     diffName = unpack('%ss' % cnt, goz_file.read(cnt))[0]
-                    print(diffName.decode('utf-8'))
+                    print("diff name: ", diffName.decode('utf-8'))
                     img = bpy.data.images.load(diffName.strip().decode('utf-8'))
-                    diff = True
+                    diff_map = True
                     txtDiff = bpy.data.textures.new("GoB_diffuse", 'IMAGE')
                     txtDiff.image = img
                     # me.uv_textures[0].data[0].image = img
+
                 elif tag == b'\xd9\xd6\x00\x00':  # Disp map
+                    print("Disp tag")
                     cnt = unpack('<I', goz_file.read(4))[0] - 16
                     goz_file.seek(8, 1)
                     dispName = unpack('%ss' % cnt, goz_file.read(cnt))[0]
-                    print(dispName.decode('utf-8'))
+                    print("disp name: ", dispName.decode('utf-8'))
                     img = bpy.data.images.load(dispName.strip().decode('utf-8'))
-                    disp = True
+                    disp_map = True
                     txtDisp = bpy.data.textures.new("GoB_displacement", 'IMAGE')
                     txtDisp.image = img
+
                 elif tag == b'\x51\xc3\x00\x00':  # Normal map
+                    print("Normal tag")
                     cnt = unpack('<I', goz_file.read(4))[0] - 16
                     goz_file.seek(8, 1)
                     nmpName = unpack('%ss' % cnt, goz_file.read(cnt))[0]
-                    print(nmpName.decode('utf-8'))
+                    print("norm name: ", nmpName.decode('utf-8'))
                     img = bpy.data.images.load(nmpName.strip().decode('utf-8'))
-                    nmp = True
+                    normal_map = True
                     txtNmp = bpy.data.textures.new("GoB_normal", 'IMAGE')
                     txtNmp.image = img
                     txtNmp.use_normal_map = True
+
                 else:
                     print("unknown tag:{0}\ntry to skip it...".format(tag))
                     if utag >= 10:
@@ -288,6 +298,24 @@ class GoB_OT_import(bpy.types.Operator):
                     goz_file.seek(cnt, 1)
                 tag = goz_file.read(4)
         bpy.context.view_layer.objects.active = obj #make active last obj
+
+        #TODO: create material nodes
+
+        # enable nodes
+        # mat.use_nodes = True
+        # nodes = mat.node_tree.nodes
+        # output_node = nodes.get('Principled BSDF')
+        # vcol_node = nodes.get('ShaderNodeAttribute')
+        #
+        # # create new node
+        # if not vcol_node:
+        #     vcol_node = nodes.new('ShaderNodeAttribute')
+        #     vcol_node.location = -300, 200
+        #     vcol_node.attribute_name = 'Col'  # TODO: replace with vertex color group name
+        #
+        #     # link nodes
+        #     mat.node_tree.links.new(output_node.inputs[0], vcol_node.outputs[0])
+
 
         # if diff:
         #     mtex = objMat.texture_slots.add()
@@ -585,14 +613,13 @@ class GoB_OT_export(bpy.types.Operator):
 
             # obj.material_slots[0].material
             for matslot in obj.material_slots:
-                print("matslot: ", matslot)
+                #print("matslot: ", matslot)
                 if matslot.material:
                     GoBmat = matslot.material
                     break
 
             # get the textures from material nodes
             if GoBmat:
-                print("gobmat: ", GoBmat)
                 nodes = GoBmat.node_tree.nodes
 
                 output_node = nodes.get('Material Output')
@@ -603,53 +630,56 @@ class GoB_OT_export(bpy.types.Operator):
                 for node_input in mat_disp_input.inputs:
                     if node_input.name == 'Height' and node_input.links:
                         disp_map = node_input.links[0].from_node
-                        print("disp_map: ", disp_map)
+                        #print("disp_map: ", disp_map)
 
                 # diffuse and normal
                 for node_input in mat_surface_input.inputs:
                     if (node_input.name == 'Base Color' or node_input.name == 'Color') and node_input.links:
                         diff_map = node_input.links[0].from_node
-                        print("diff map: ", diff_map)
+                        #print("diff map: ", diff_map)
 
                     elif node_input.name == 'Normal':
                         normal_node = node_input.links[0].from_node
                         for i in normal_node.inputs:
                             if i.name == 'Color' and i.links:
                                 normal_map = i.links[0].from_node
-                                print("normal_map: ", i.links[0].from_node)
+                                #print("normal_map: ", i.links[0].from_node)
 
             formatRender = scn.render.image_settings.file_format
-            scn.render.image_settings.file_format = 'BMP'
+            scn.render.image_settings.file_format = 'TIFF'
+            texture_extension = '.tif'
+            diff_suffix = '_TXTR'
+            norm_suffix = '_NM'
+            disp_suffix = '_DM'
 
             if diff_map:
                 name = diff_map.image.filepath.replace('\\', '/')
                 name = name.rsplit('/')[-1]
                 name = name.rsplit('.')[0]
                 if len(name) > 5:
-                    if name[-5:] == "_TXTR":
-                        name = path + '/GoZProjects/Default/' + name + '.bmp'
+                    if name[-5:] == diff_suffix:
+                        name = path + '/GoZProjects/Default/' + name + texture_extension
                     else:
-                        name = path + '/GoZProjects/Default/' + name + '_TXTR.bmp'
+                        name = path + '/GoZProjects/Default/' + name + diff_suffix + texture_extension
                 diff_map.image.save_render(name)
-                print(name)
+                print("exported: ", name)
                 name = name.encode('utf8')
                 goz_file.write(pack('<4B', 0xc9, 0xaf, 0x00, 0x00))
                 goz_file.write(pack('<I', len(name)+16))
                 goz_file.write(pack('<Q', 1))
                 goz_file.write(pack('%ss' % len(name), name))
 
-
             if normal_map:
                 name = normal_map.image.filepath.replace('\\', '/')
                 name = name.rsplit('/')[-1]
                 name = name.rsplit('.')[0]
                 if len(name) > 3:
-                    if name[-3:] == "_NM":
-                        name = path + '/GoZProjects/Default/' + name + '.bmp'
+                    if name[-3:] == norm_suffix:
+                        name = path + '/GoZProjects/Default/' + name + texture_extension
                     else:
-                        name = path + '/GoZProjects/Default/' + name + '_NM.bmp'
+                        name = path + '/GoZProjects/Default/' + name + norm_suffix + texture_extension
                 normal_map.image.save_render(name)
-                print(name)
+                print("exported: ", name)
                 name = name.encode('utf8')
                 goz_file.write(pack('<4B', 0x51, 0xc3, 0x00, 0x00))
                 goz_file.write(pack('<I', len(name) + 16))
@@ -661,17 +691,18 @@ class GoB_OT_export(bpy.types.Operator):
                 name = name.rsplit('/')[-1]
                 name = name.rsplit('.')[0]
                 if len(name) > 3:
-                    if name[-3:] == "_DM":
-                        name = path + '/GoZProjects/Default/' + name + '.bmp'
+                    if name[-3:] == disp_suffix:
+                        name = path + '/GoZProjects/Default/' + name + texture_extension
                     else:
-                        name = path + '/GoZProjects/Default/' + name + '_DM.bmp'
+                        name = path + '/GoZProjects/Default/' + name + disp_suffix + texture_extension
                 disp_map.image.save_render(name)
-                print(name)
+                print("exported: ", name)
                 name = name.encode('utf8')
                 goz_file.write(pack('<4B', 0xd9, 0xd6, 0x00, 0x00))
                 goz_file.write(pack('<I', len(name)+16))
                 goz_file.write(pack('<Q', 1))
                 goz_file.write(pack('%ss' % len(name), name))
+
             # fin
             scn.render.image_settings.file_format = formatRender
             goz_file.write(pack('16x'))
