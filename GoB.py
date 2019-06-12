@@ -300,7 +300,7 @@ class GoB_OT_import(bpy.types.Operator):
                 tag = goz_file.read(4)
         bpy.context.view_layer.objects.active = obj #make active last obj
 
-        create_node_textures(objMat, txtDiff, txtNmp, txtDisp)
+        #create_node_textures(objMat, txtDiff, txtNmp, txtDisp)
         #me.materials.append(objMat)
         return
 
@@ -339,7 +339,11 @@ class GoB_OT_import(bpy.types.Operator):
         return{'FINISHED'}
 
 
-def create_node_textures(mat, txtDiff, txtNmp, txtDisp):
+from . import NodeBuilder
+testnode = NodeBuilder.TestNodes("hans")
+print(testnode)
+
+def create_node_textures(mat=None, txtDiff=None, txtNmp=None, txtDisp=None):
 
 
     #if no nodes:
@@ -378,26 +382,27 @@ def create_node_textures(mat, txtDiff, txtNmp, txtDisp):
         for node in nodes:
             for output in node.outputs:
                 for link in output.links:
-                    #if link:
-                    print("out link found: ", node.bl_idname, " -> ", link.to_node.name, " : ", link.to_node.links)
+                    if link:
+                        print("out link found: ", node.bl_idname, " -> ", link.to_node.name)    # , " : ", link.to_node.link)
 
-                    if node.bl_idname == 'ShaderNodeTexImage' and link.to_node.name == 'Principled BSDF':
-                        print("diffuse texture node identified")
+                        if node.bl_idname == 'ShaderNodeTexImage' and link.to_node.name == 'Principled BSDF':
+                            print("diffuse texture node identified")
+                        else:
+                            pass
+                        if node.bl_idname == 'ShaderNodeTexImage' and link.to_node.name == 'Normal Map':
+                            print("normal map texture node identified")
+                        else:
+                            pass
+                        if node.bl_idname == 'ShaderNodeTexImage' and link.to_node.name == 'Displacement':
+                            print("displacement map texture node identified")
+                        else:
+                            pass
                     else:
-                        pass
-                    if node.bl_idname == 'ShaderNodeTexImage' and link.to_node.name == 'Normal Map':
-                        print("normal map texture node identified")
-                    else:
-                        pass
-                    if node.bl_idname == 'ShaderNodeTexImage' and link.to_node.name == 'Displacement':
-                        print("displacement map texture node identified")
-                    else:
-                        pass
-
+                        print("No node link found: ", node.bl_idname)
 
 
             # if node.bl_idname == 'ShaderNodeTexImage':
-            #     print("ShaderNodeTexImage")
+            #     print("ShaderNodeTexImage"G)
             # if node.name == 'Image Texture':
             #     print(node)
             # else:
@@ -464,37 +469,37 @@ def create_node_textures(mat, txtDiff, txtNmp, txtDisp):
             mat.node_tree.links.new(disp_node.inputs[0], txtDisp_node.outputs[0])
 
 
-    print(80*"=")
+        print(80*"=")
 
 
-    # output_node = nodes.get('Material Output')
-    # shader_node = nodes.get('Principled BSDF')
-    # print("output_node: ", output_node)
+        # output_node = nodes.get('Material Output')
+        # shader_node = nodes.get('Principled BSDF')
+        # print("output_node: ", output_node)
 
 
-    # TODO: trace color node to input of output node
-    #txtdiff_node = nodes.get('ShaderNodeTexImage')
-    # for node_input in output_node.inputs:
-    #     print("node inputs: ", input)
-    #     if (node_input.name == 'Base Color' or node_input.name == 'Color') and node_input.links:
-    #         pass
-    #     if node_input.name == 'Normal' and node_input.links:
-    #         pass
-    #     if node_input.name == 'Color' and node_input.links:
-    #         pass
-    #
-    #     if node_input.name == 'Height' and node_input.links:
-    #         pass
+        # TODO: trace color node to input of output node
+        #txtdiff_node = nodes.get('ShaderNodeTexImage')
+        # for node_input in output_node.inputs:
+        #     print("node inputs: ", input)
+        #     if (node_input.name == 'Base Color' or node_input.name == 'Color') and node_input.links:
+        #         pass
+        #     if node_input.name == 'Normal' and node_input.links:
+        #         pass
+        #     if node_input.name == 'Color' and node_input.links:
+        #         pass
+        #
+        #     if node_input.name == 'Height' and node_input.links:
+        #         pass
 
 
 
-    # # create new node
-    #if not txtdiff_node:
-    #txtdiff_node = nodes.new('ShaderNodeTexImage')
-    #txtdiff_node.location = -300, 300
-    #txtdiff_node.image = txtDiff.image
-    # link nodes
-    #mat.node_tree.links.new(output_node.inputs[0], txtdiff_node.outputs[0])
+        # # create new node
+        #if not txtdiff_node:
+        #txtdiff_node = nodes.new('ShaderNodeTexImage')
+        #txtdiff_node.location = -300, 300
+        #txtdiff_node.image = txtDiff.image
+        # link nodes
+        #mat.node_tree.links.new(output_node.inputs[0], txtdiff_node.outputs[0])
 
 
 
@@ -778,7 +783,8 @@ class GoB_OT_export(bpy.types.Operator):
                     GoBmat = matslot.material
                     break
 
-            # get the textures from material nodes
+            #get the textures from material nodes
+            #TODO: currently only full node export is supported, cover partial node setup (diff, nm, dm)
             if GoBmat.node_tree:
                 nodes = GoBmat.node_tree.nodes
 

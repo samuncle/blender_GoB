@@ -23,6 +23,8 @@ if "bpy" in locals():
 else:
     from . import GoB
 
+
+
 import bpy
 import os
 from . import addon_updater_ops
@@ -46,7 +48,7 @@ bl_info = {
 classes = (
     GoB.GoB_OT_import,
     GoB.GoB_OT_export,
-    GoB.GoBPreferences
+    GoB.GoBPreferences,
     )
 
 
@@ -66,6 +68,7 @@ def register():
     GoB.preview_collections["main"] = icons
 
     bpy.types.TOPBAR_HT_upper_bar.append(GoB.draw_goz)
+
 
 def unregister():
     # addon updater unregister
