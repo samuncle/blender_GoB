@@ -386,9 +386,19 @@ def create_node_material(mat):
     # enable nodes
     mat.use_nodes = True
     nodes = mat.node_tree.nodes
-    output_node = nodes.get('Principled BSDF')
-    vcol_node = nodes.get('ShaderNodeAttribute')
+    output_node = False
+    vcol_node = False
+    #output_node = nodes.get('Principled BSDF')
+    #vcol_node = nodes.get('ShaderNodeAttribute')
+    for node in nodes:
+        print(node.bl_idname, node.bl_static_type)
+        if node.bl_idname == 'ShaderNodeAttribute':
+            vcol_node =  'ShaderNodeAttribute'
+            print(node.name)
+        if node.bl_idname == 'ShaderNodeBsdfPrincipled':
+            output_node = 'ShaderNodeBsdfPrincipled'
 
+    print("Vcol: ", output_node, vcol_node)
     # create new node
     if not vcol_node:
         vcol_node = nodes.new('ShaderNodeAttribute')
@@ -396,7 +406,8 @@ def create_node_material(mat):
         vcol_node.attribute_name = 'Col'  # TODO: replace with vertex color group name
 
         # link nodes
-        mat.node_tree.links.new(output_node.inputs[0], vcol_node.outputs[0])
+        print("links: ", nodes.get(vcol_node))
+        mat.node_tree.links.new(output_node.input[0], vcol_node.output[0])
 
 
 def run_import_periodically():
