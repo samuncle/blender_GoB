@@ -390,25 +390,41 @@ def create_node_material(mat):
     vcol_node = False
     #output_node = nodes.get('Principled BSDF')
     #vcol_node = nodes.get('ShaderNodeAttribute')
-    for node in nodes:
-        print(node.bl_idname, node.bl_static_type)
-        if node.bl_idname == 'ShaderNodeAttribute':
-            vcol_node =  'ShaderNodeAttribute'
-            print(node.name)
-        if node.bl_idname == 'ShaderNodeBsdfPrincipled':
-            output_node = 'ShaderNodeBsdfPrincipled'
+
 
     print("Vcol: ", output_node, vcol_node)
     # create new node
-    if not vcol_node:
+    if vcol_node == False:
+
+        print("creating attribute node")
         vcol_node = nodes.new('ShaderNodeAttribute')
         vcol_node.location = -300, 200
         vcol_node.attribute_name = 'Col'  # TODO: replace with vertex color group name
 
+        for node in nodes:
+            print("Parse Nodes: ", node.bl_idname, node.bl_static_type)
+            if node.bl_idname == 'ShaderNodeAttribute':
+                vcol_node = 'ShaderNodeAttribute'
+                print("Get Attribute Node: ", node.name)
+            if node.bl_idname == 'ShaderNodeBsdfPrincipled':
+                output_node = 'ShaderNodeBsdfPrincipled'
+
+
         # link nodes
-        print("links: ", nodes.get(vcol_node))
+        #print("links: ", nodes.get(vcol_node))
+        for i in ouput_node.input:
+            print("output node: ", i)
+
+        for i in vcol_node.output:
+            print("input node: ", i)
+
+        print("linking nodes: ", output_node.input[0], vcol_node.output[0])
         mat.node_tree.links.new(output_node.input[0], vcol_node.output[0])
 
+    else:
+        pass # just link the nodes
+
+    print("Vcol2: ", output_node, vcol_node)
 
 def run_import_periodically():
     # print("Runing timers update check")
