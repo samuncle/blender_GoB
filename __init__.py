@@ -22,10 +22,12 @@ if "bpy" in locals():
     importlib.reload(GoB)
     importlib.reload(preferences)
     importlib.reload(addon_updater_ops)
+    importlib.reload(NodeBuilder)
 else:
     from . import GoB
     from . import preferences
     from . import addon_updater_ops
+    from . import NodeBuilder
 
 
 
@@ -50,7 +52,8 @@ bl_info = {
 classes = (
     GoB.GoB_OT_import,
     GoB.GoB_OT_export,
-    preferences.GoBPreferences
+    preferences.GoBPreferences,
+    NodeBuilder.BuildNodes
     )
 
 

@@ -24,6 +24,7 @@ import os
 from struct import pack, unpack
 from copy import deepcopy
 import string
+from . import NodeBuilder
 
 
 
@@ -359,7 +360,11 @@ class GoB_OT_import(bpy.types.Operator):
         bpy.context.view_layer.objects.active = obj
 
         if pref.materialinput == 'TEXTURES':
-            create_node_textures(objMat, txtDiff, txtNmp, txtDisp)
+            #create_node_textures(objMat, txtDiff, txtNmp, txtDisp)
+            #testnode = NodeBuilder.TestNodes("hans")
+            newnode = NodeBuilder.BuildNodes(self, material=objMat)
+            newnode.create_output_node()
+            pass
         #me.materials.append(objMat)
         return
 
@@ -398,9 +403,7 @@ class GoB_OT_import(bpy.types.Operator):
         return{'FINISHED'}
 
 
-from . import NodeBuilder
-testnode = NodeBuilder.TestNodes("hans")
-print(testnode)
+
 
 def create_node_textures(mat=None, txtDiff=None, txtNmp=None, txtDisp=None):
 
