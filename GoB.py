@@ -100,7 +100,9 @@ class GoB_OT_import(bpy.types.Operator):
                 if tag == b'\x89\x13\x00\x00':
                     cnt = unpack('<L', goz_file.read(4))[0] - 8
                     goz_file.seek(cnt, 1)
-                elif tag == b'\x11\x27\x00\x00':  # Vertices
+
+                # Vertices
+                elif tag == b'\x11\x27\x00\x00':
                     goz_file.seek(4, 1)
                     cnt = unpack('<Q', goz_file.read(8))[0]
                     for i in range(cnt):
@@ -108,7 +110,9 @@ class GoB_OT_import(bpy.types.Operator):
                         co2 = unpack('<f', goz_file.read(4))[0]
                         co3 = unpack('<f', goz_file.read(4))[0]
                         vertsData.append((co1, co2, co3))
-                elif tag == b'\x21\x4e\x00\x00':  # Faces
+
+                # Faces
+                elif tag == b'\x21\x4e\x00\x00':
                     goz_file.seek(4, 1)
                     cnt = unpack('<Q', goz_file.read(8))[0]
                     for i in range(cnt):
@@ -123,15 +127,24 @@ class GoB_OT_import(bpy.types.Operator):
                         else:
                             facesData.append((v1, v2, v3, v4))
 
-                elif tag == b'\xa9\x61\x00\x00':  # UVs
+                # UVs
+                elif tag == b'\xa9\x61\x00\x00':
                     break
-                elif tag == b'\xb9\x88\x00\x00':  # Polypainting
+
+                # Polypainting
+                elif tag == b'\xb9\x88\x00\x00':
                     break
-                elif tag == b'\x32\x75\x00\x00':  # Mask
+
+                # Mask
+                elif tag == b'\x32\x75\x00\x00':
                     break
-                elif tag == b'\x41\x9c\x00\x00':  # Polyroups
+
+                # Polyroups
+                elif tag == b'\x41\x9c\x00\x00':
                     break
-                elif tag == b'\x00\x00\x00\x00':  # End
+
+                # End
+                elif tag == b'\x00\x00\x00\x00':
                     break
                 else:
                     # print(f"unknown tag:{tag}. Skip it...")
@@ -202,7 +215,7 @@ class GoB_OT_import(bpy.types.Operator):
                 else:
                     objMat = bpy.data.materials.new('GoB_{0}'.format(objName))
                     obj.data.materials.append(objMat)
-                create_node_material(objMat, pref)
+                #create_node_material(objMat, pref)
 
             # create new object
             else:
@@ -211,7 +224,7 @@ class GoB_OT_import(bpy.types.Operator):
                 obj.data.materials.append(objMat)
                 scn.collection.objects.link(obj)
                 obj.select_set(True)
-                create_node_material(objMat, pref)
+                #create_node_material(objMat, pref)
 
             # user defined import shading
             if pref.shading == 'SHADE_SMOOTH':
@@ -222,8 +235,9 @@ class GoB_OT_import(bpy.types.Operator):
 
             utag = 0
 
+            # UVs
             while tag:
-                if tag == b'\xa9\x61\x00\x00':  # UVs
+                if tag == b'\xa9\x61\x00\x00':
                     me.uv_layers.new()
                     goz_file.seek(4, 1)
                     cnt = unpack('<Q', goz_file.read(8))[0] #face count..
@@ -235,7 +249,8 @@ class GoB_OT_import(bpy.types.Operator):
                         if i < 3:  # cos uv always have 4 coords... ??
                             x, y = unpack('<2f', goz_file.read(8))
 
-                elif tag == b'\xb9\x88\x00\x00':  # Polypainting
+                # Polypainting
+                elif tag == b'\xb9\x88\x00\x00':
                     min = 255
                     goz_file.seek(4, 1)
                     cnt = unpack('<Q', goz_file.read(8))[0]
@@ -260,7 +275,8 @@ class GoB_OT_import(bpy.types.Operator):
                                 iv += 1
                     del polypaint
 
-                elif tag == b'\x32\x75\x00\x00':  # Mask
+                # Mask
+                elif tag == b'\x32\x75\x00\x00':
                     goz_file.seek(4, 1)
                     cnt = unpack('<Q', goz_file.read(8))[0]
                     if 'mask' in obj.vertex_groups:
@@ -270,7 +286,8 @@ class GoB_OT_import(bpy.types.Operator):
                         data = unpack('<H', goz_file.read(2))[0] / 65535.
                         groupMask.add([i], 1.-data, 'ADD')
 
-                elif tag == b'\x41\x9c\x00\x00':  # Polyroups
+                # Polyroups
+                elif tag == b'\x41\x9c\x00\x00':
                     groups = []
                     goz_file.seek(4, 1)
                     cnt = unpack('<Q', goz_file.read(8))[0]
@@ -291,9 +308,8 @@ class GoB_OT_import(bpy.types.Operator):
                 elif tag == b'\x00\x00\x00\x00':
                     break  # End
 
-
-
-                elif tag == b'\xc9\xaf\x00\x00':  # Diff map
+                # Diff map
+                elif tag == b'\xc9\xaf\x00\x00':
                     print("diff tag")
                     cnt = unpack('<I', goz_file.read(4))[0] - 16
                     goz_file.seek(8, 1)
@@ -305,7 +321,8 @@ class GoB_OT_import(bpy.types.Operator):
                     txtDiff.image = img
                     # me.uv_textures[0].data[0].image = img
 
-                elif tag == b'\xd9\xd6\x00\x00':  # Disp map
+                # Disp map
+                elif tag == b'\xd9\xd6\x00\x00':
                     print("Disp tag")
                     cnt = unpack('<I', goz_file.read(4))[0] - 16
                     goz_file.seek(8, 1)
@@ -316,7 +333,8 @@ class GoB_OT_import(bpy.types.Operator):
                     txtDisp = bpy.data.textures.new("GoB_displacement", 'IMAGE')
                     txtDisp.image = img
 
-                elif tag == b'\x51\xc3\x00\x00':  # Normal map
+                # Normal map
+                elif tag == b'\x51\xc3\x00\x00':
                     print("Normal tag")
                     cnt = unpack('<I', goz_file.read(4))[0] - 16
                     goz_file.seek(8, 1)
@@ -340,8 +358,8 @@ class GoB_OT_import(bpy.types.Operator):
 
         bpy.context.view_layer.objects.active = obj
 
-
-        create_node_textures(objMat, txtDiff, txtNmp, txtDisp)
+        if pref.materialinput == 'TEXTURES':
+            create_node_textures(objMat, txtDiff, txtNmp, txtDisp)
         #me.materials.append(objMat)
         return
 
@@ -357,7 +375,7 @@ class GoB_OT_import(bpy.types.Operator):
 
         if context.object and context.object.mode != 'OBJECT':
             # ! cant get proper context from timers for now to change mode: https://developer.blender.org/T62074
-            bpy.ops.object.mode_set(context.copy(), mode='OBJECT') #hack
+            bpy.ops.object.mode_set(context.copy(), mode='OBJECT')      #TODO: fix #hack
 
         for ztool_path in goz_obj_paths:
             self.GoZit(ztool_path)
@@ -413,7 +431,7 @@ def create_node_textures(mat, txtDiff, txtNmp, txtDisp):
     # enable nodes
     if not mat.use_nodes:
         mat.use_nodes = True
-
+ 
     nodes = mat.node_tree.nodes
     if nodes:
         for node in nodes:
@@ -538,7 +556,7 @@ def create_node_textures(mat, txtDiff, txtNmp, txtDisp):
     #mat.node_tree.links.new(output_node.inputs[0], txtdiff_node.outputs[0])
 
 
-
+# currently not used
 def collect_export_nodes():
     # obj.material_slots[0].material
     for matslot in obj.material_slots:
