@@ -25,7 +25,6 @@ from struct import pack, unpack
 from copy import deepcopy
 import string
 
-from . import addon_updater_ops
 
 
 if os.path.isfile("C:/Users/Public/Pixologic/GoZBrush/GoZBrushFromApp.exe"):
@@ -41,21 +40,28 @@ else:
 time_interval = 2.0  # Check GoZ import for changes every 2.0 seconds
 run_background_update = False
 cached_last_edition_time = time.time() - 10.0
+
 preview_collections = {}
-
-
-def draw_goz(self, context):
+def draw_goz_buttons(self, context):
     global run_background_update, icons
     icons = preview_collections["main"]
-
+    pref = bpy.context.preferences.addons[__package__.split(".")[0]].preferences
     if context.region.alignment != 'RIGHT':
         layout = self.layout
         row = layout.row(align=True)
-        row.operator(operator="scene.gob_export", text="Export", emboss=True, icon_value=icons["GOZ_SEND"].icon_id)
-        if run_background_update:
-            row.operator(operator="scene.gob_import", text="Import", emboss=True, depress=True, icon_value=icons["GOZ_SYNC_ENABLED"].icon_id)
+
+        if pref.show_button_text:
+            row.operator(operator="scene.gob_export", text="Export", emboss=True, icon_value=icons["GOZ_SEND"].icon_id)
+            if run_background_update:
+                row.operator(operator="scene.gob_import", text="Import", emboss=True, depress=True, icon_value=icons["GOZ_SYNC_ENABLED"].icon_id)
+            else:
+                row.operator(operator="scene.gob_import", text="Import", emboss=True, depress=False, icon_value=icons["GOZ_SYNC_DISABLED"].icon_id)
         else:
-            row.operator(operator="scene.gob_import", text="Import", emboss=True, depress=False, icon_value=icons["GOZ_SYNC_DISABLED"].icon_id)
+            row.operator(operator="scene.gob_export", text="", emboss=True, icon_value=icons["GOZ_SEND"].icon_id)
+            if run_background_update:
+                row.operator(operator="scene.gob_import", text="", emboss=True, depress=True, icon_value=icons["GOZ_SYNC_ENABLED"].icon_id)
+            else:
+                row.operator(operator="scene.gob_import", text="", emboss=True, depress=False, icon_value=icons["GOZ_SYNC_DISABLED"].icon_id)
 
 
 class GoB_OT_import(bpy.types.Operator):
@@ -139,21 +145,43 @@ class GoB_OT_import(bpy.types.Operator):
             me.from_pydata(vertsData, [], facesData)  # Assume mesh data in ready to write to mesh..
             del vertsData
             del facesData
+            if pref.flip_up_axis:  # fixes bad mesh orientation for some people
+                if pref.flip_forward_axis:
+                    me.transform(mathutils.Matrix([
+                        (-1., 0., 0., 0.),
+                        (0., 0., -1., 0.),
+                        (0., 1., 0., 0.),
+                        (0., 0., 0., 1.)]))
+                    me.flip_normals()
+                else:
+                    me.transform(mathutils.Matrix([
+                        (-1., 0., 0., 0.),
+                        (0., 0., 1., 0.),
+                        (0., 1., 0., 0.),
+                        (0., 0., 0., 1.)]))
 
-            if pref.flip_y: #fixes bad mesh orientation for some people
-                me.transform(mathutils.Matrix([
-                    (-1., 0., 0., 0.),
-                    (0., 0., 1., 0.),
-                    (0., 1., 0., 0.),
-                    (0., 0., 0., 1.)]))
             else:
-                me.transform(mathutils.Matrix([
-                    (1., 0., 0., 0.),
-                    (0., 0., 1., 0.),
-                    (0., -1., 0., 0.),
-                    (0., 0., 0., 1.)]))
+                if pref.flip_forward_axis:
+                    me.transform(mathutils.Matrix([
+                        (1., 0., 0., 0.),
+                        (0., 0., -1., 0.),
+                        (0., -1., 0., 0.),
+                        (0., 0., 0., 1.)]))
+                    me.flip_normals()
+                else:
+                    me.transform(mathutils.Matrix([
+                        (1., 0., 0., 0.),
+                        (0., 0., 1., 0.),
+                        (0., -1., 0., 0.),
+                        (0., 0., 0., 1.)]))
 
-            if objName in bpy.data.objects.keys():  # if obj already exist do code below
+            # useful for development when the mesh may be invalid.
+            me.validate(verbose=True)
+            # update mesh data after transformations to fix normals
+            me.update(calc_edges=True, calc_edges_loose=True, calc_loop_triangles=True)
+
+            # if obj already exist do code below
+            if objName in bpy.data.objects.keys():
                 obj = bpy.data.objects[objName]
                 oldMesh = obj.data
                 instances = [ob for ob in bpy.data.objects if ob.data == obj.data]
@@ -174,13 +202,24 @@ class GoB_OT_import(bpy.types.Operator):
                 else:
                     objMat = bpy.data.materials.new('GoB_{0}'.format(objName))
                     obj.data.materials.append(objMat)
-                #create_node_material(objMat)
+                create_node_material(objMat, pref)
+
+            # create new object
             else:
                 obj = bpy.data.objects.new(objName, me)
                 objMat = bpy.data.materials.new('GoB_{0}'.format(objName))
                 obj.data.materials.append(objMat)
                 scn.collection.objects.link(obj)
-                #create_node_material(objMat)
+                obj.select_set(True)
+                create_node_material(objMat, pref)
+
+            # user defined import shading
+            if pref.shading == 'SHADE_SMOOTH':
+                values = [True] * len(me.polygons)
+            else:
+                values = [False] * len(me.polygons)
+            me.polygons.foreach_set("use_smooth", values)
+
             utag = 0
 
             while tag:
@@ -298,7 +337,9 @@ class GoB_OT_import(bpy.types.Operator):
                     cnt = unpack('<I', goz_file.read(4))[0] - 8
                     goz_file.seek(cnt, 1)
                 tag = goz_file.read(4)
-        bpy.context.view_layer.objects.active = obj #make active last obj
+
+        bpy.context.view_layer.objects.active = obj
+
 
         create_node_textures(objMat, txtDiff, txtNmp, txtDisp)
         #me.materials.append(objMat)
@@ -534,21 +575,22 @@ def collect_export_nodes():
                         # print("normal_map: ", i.links[0].from_node)
 
 
-def create_node_material(mat):
     # enable nodes
     mat.use_nodes = True
     nodes = mat.node_tree.nodes
     output_node = nodes.get('Principled BSDF')
     vcol_node = nodes.get('ShaderNodeAttribute')
 
-    # create new node
-    if not vcol_node:
-        vcol_node = nodes.new('ShaderNodeAttribute')
-        vcol_node.location = -300, 200
-        vcol_node.attribute_name = 'Col'  # TODO: replace with vertex color group name
+    if pref.materialinput == 'POLYPAINT':
 
-        # link nodes
-        mat.node_tree.links.new(output_node.inputs[0], vcol_node.outputs[0])
+        # create new node
+        if not vcol_node:
+            vcol_node = nodes.new('ShaderNodeAttribute')
+            vcol_node.location = -300, 200
+            vcol_node.attribute_name = 'Col'  # TODO: replace with vertex color group name
+
+            # link nodes
+            mat.node_tree.links.new(output_node.inputs[0], vcol_node.outputs[0])
 
 
 def run_import_periodically():
@@ -586,16 +628,14 @@ class GoB_OT_export(bpy.types.Operator):
 
     @staticmethod
     def apply_modifiers(obj, pref):
-        depsgraph = bpy.context.evaluated_depsgraph_get()
+        dg = bpy.context.evaluated_depsgraph_get()
         if pref.modifiers == 'APPLY_EXPORT':
-            object_eval = obj.evaluated_get(depsgraph)
             # me = object_eval.to_mesh() #with modifiers - crash need to_mesh_clear()?
-            me = bpy.data.meshes.new_from_object(object_eval)  # with modifiers
+            me = bpy.data.meshes.new_from_object(obj.evaluated_get(dg), preserve_all_data_layers=True, depsgraph=dg)
             obj.data = me
             obj.modifiers.clear()
-        elif pref.modifiers == 'JUST_EXPORT':
-            object_eval = obj.evaluated_get(depsgraph)
-            me = bpy.data.meshes.new_from_object(object_eval)
+        elif pref.modifiers == 'ONLY_EXPORT':
+            me = bpy.data.meshes.new_from_object(obj.evaluated_get(dg), preserve_all_data_layers=True, depsgraph=dg)
         else:
             me = obj.data
 
@@ -613,8 +653,35 @@ class GoB_OT_export(bpy.types.Operator):
 
         return export_mesh
 
+    @staticmethod
+    def make_polygroups(obj, pref, create=False):
+
+        if pref.polygroups == 'MATERIALS':
+            for index, slot in enumerate(obj.material_slots):
+                #select the verts from faces with material index
+                if not slot.material:
+                    # empty slot
+                    continue
+                verts = [v for f in obj.data.polygons
+                         if f.material_index == index for v in f.vertices]
+                if len(verts):
+                    vg = obj.vertex_groups.get(slot.material.name)
+                    if create == True:
+                        if vg is None:
+                            vg = obj.vertex_groups.new(name=slot.material.name)
+                            vg.add(verts, 1.0, 'ADD')
+                    else:
+                        try:
+                            obj.vertex_groups.remove(vg)
+                        except:
+                            pass
+        else:
+            pass
+
+
     def exportGoZ(self, path, scn, obj, pathImport):
         pref = bpy.context.preferences.addons[__package__.split(".")[0]].preferences
+
 
         # TODO: when linked system is finalized it could be possible to provide
         #  a option to modify the linked object. for now a copy
@@ -628,21 +695,37 @@ class GoB_OT_export(bpy.types.Operator):
                 obj.select_set(state=False)
                 bpy.context.view_layer.objects.active = new_ob
 
+        #create polygroups from object features (materials, uvs, ...)
+        self.make_polygroups(obj, pref, True)
         me = self.apply_modifiers(obj, pref)
         me.calc_loop_triangles()
 
-        if pref.flip_y:
-            mat_transform = mathutils.Matrix([
-                (-1., 0., 0., 0.),
-                (0., 0., 1., 0.),
-                (0., 1., 0., 0.),
-                (0., 0., 0., 1.)])
+        if pref.flip_up_axis:
+            if pref.flip_forward_axis:
+                mat_transform = mathutils.Matrix([
+                    (1., 0., 0., 0.),
+                    (0., 0., 1., 0.),
+                    (0., -1., 0., 0.),
+                    (0., 0., 0., 1.)])
+            else:
+                mat_transform = mathutils.Matrix([
+                    (-1., 0., 0., 0.),
+                    (0., 0., 1., 0.),
+                    (0., 1., 0., 0.),
+                    (0., 0., 0., 1.)])
         else:
-            mat_transform = mathutils.Matrix([
-                (1., 0., 0., 0.),
-                (0., 0., -1., 0.),
-                (0., 1., 0., 0.),
-                (0., 0., 0., 1.)])
+            if pref.flip_forward_axis:
+                mat_transform = mathutils.Matrix([
+                    (-1., 0., 0., 0.),
+                    (0., 0., -1., 0.),
+                    (0., -1., 0., 0.),
+                    (0., 0., 0., 1.)])
+            else:
+                mat_transform = mathutils.Matrix([
+                    (1., 0., 0., 0.),
+                    (0., 0., -1., 0.),
+                    (0., 1., 0., 0.),
+                    (0., 0., 0., 1.)])
 
         with open(pathImport+'/{0}.GoZ'.format(obj.name), 'wb') as goz_file:
             goz_file.write(b"GoZb 1.0 ZBrush GoZ Binary")
@@ -869,6 +952,8 @@ class GoB_OT_export(bpy.types.Operator):
             scn.render.image_settings.file_format = formatRender
             goz_file.write(pack('16x'))
 
+        self.make_polygroups(obj, pref, False)
+
         bpy.data.meshes.remove(me)
         return
 
@@ -912,59 +997,4 @@ class GoB_OT_export(bpy.types.Operator):
         obj.name = new_name
 
 
-class GoBPreferences(bpy.types.AddonPreferences):
-    bl_idname = __package__
 
-    flip_y: bpy.props.BoolProperty(
-        name="Invert up axis",
-        description="If you experience bad mesh orientation use this option, change mesh export/import orientation mode",
-        default=False)
-    modifiers: bpy.props.EnumProperty(
-        name='Modifiers',
-        description='How to handle exported object modifiers',
-        items=[('APPLY_EXPORT', 'Export and Apply', 'Apply modifiers to object and export them to zbrush'),
-               ('JUST_EXPORT', 'Only Export', 'Export modifiers to zbrush but do not apply them to mesh'),
-               ('IGNORE', 'Ignore', 'Do not export modifiers')],
-        default='JUST_EXPORT')
-
-    # addon updater preferences
-    auto_check_update: bpy.props.BoolProperty(
-        name="Auto-check for Update",
-        description="If enabled, auto-check for updates using an interval",
-        default=False)
-    updater_intrval_months: bpy.props.IntProperty(
-        name='Months',
-        description="Number of months between checking for updates",
-        default=0,
-        min=0)
-    updater_intrval_days: bpy.props.IntProperty(
-        name='Days',
-        description="Number of days between checking for updates",
-        default=7,
-        min=0,
-        max=31)
-    updater_intrval_hours: bpy.props.IntProperty(
-        name='Hours',
-        description="Number of hours between checking for updates",
-        default=0,
-        min=0,
-        max=23)
-    updater_intrval_minutes: bpy.props.IntProperty(
-        name='Minutes',
-        description="Number of minutes between checking for updates",
-        default=0,
-        min=0,
-        max=59)
-
-    def draw(self, context):
-        layout = self.layout
-        layout.prop(self, 'flip_y')
-        layout.prop(self, 'modifiers')
-
-        col = layout.column()   # works best if a column, or even just self.layout
-        mainrow = layout.row()
-        col = mainrow.column()
-
-        # updater draw function
-        # could also pass in col as third arg
-        addon_updater_ops.update_settings_ui(self, context)
